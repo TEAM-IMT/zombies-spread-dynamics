@@ -1,4 +1,4 @@
-# Chatbot
+# Zombies Spread Dynamics
 
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
@@ -12,7 +12,7 @@
 <br />
 <p align="center">
   <a href="https://github.com/TatianaMoreno47/Chatbot">
-    <img src="logo.png" alt="Logo" width="720" >
+    <img src="images/logo.png" alt="Logo" width="720" >
   </a>
 
   <h3 align="center"> Clementine (Chatbot) </h3>
