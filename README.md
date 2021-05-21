@@ -118,19 +118,22 @@ You can see how the graph changes through the simulation from different function
 
 ```python
 kind_plot = 'evolution' # Change the word in order to get a different plot
+graph_type = 'both' # Available types: ['zombie','human', 'both']
 for epoch in tqdm.tqdm(range(20)): # Just 20 epochs
     dynamic.step() # Run one step in dynamic procedure
     dynamic.plot_zombie_age() # Zombies evolution by age
     if kind_plot == 'evolution':
-        dynamic.plot_evolution()
+        dynamic.plot_evolution() # Zombies and human evolution
     elif kind_plot == 'graph':
-        dynamic.plot_graph()
+        dynamic.plot_graph(type = graph_type) # Graph evolution
     elif kind_plot == 'all':
-        dynamic.plot_all()
+        dynamic.plot_all(type = graph_type) # Population + Graph evolution
     print(G) # See basic statistics at each iteration
 plt.show()
 ```
 * **Note:** For complex networks with more than 400 total nodes, these simulations can be computationally expensive. It is recommended to update the graph every few iterations.
+
+For more information, use the *help* command to view the library documentation.
 
 <!-- ROADMAP -->
 ## Roadmap
@@ -166,8 +169,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 <!-- ACKNOWLEDGEMENTS -->
 ## Acknowledgements
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) for providing the repository README template. 
-<!-- * [UE TAL 2020 Chatbot](https://github.com/valeporti/imt_chatbot) for serving as the basis of the project, as well as providing examples of intentions. -->
+* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) for providing the README template.
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
