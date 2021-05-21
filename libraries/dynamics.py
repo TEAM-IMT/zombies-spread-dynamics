@@ -53,7 +53,7 @@ class spread_zombie_dynamics:
     reset()
         Simulation restart, setting original values
     
-    run()
+    step()
         Execute one step in dynamic process
     
     plot_evolution(self, ax: plt.axes = None, **kwargs: dict)
@@ -173,7 +173,7 @@ class spread_zombie_dynamics:
         self._fig_graph, self._ax_graph, self._graph_pos, self._colorbar = None, None, None, None
         plt.close('all')
 
-    def run(self):
+    def step(self):
         """
         Execute one step in dynamic process, which implies:
             - Step 0: Update zombies age and execute actions: (military trops and/or nuclear bombs)
@@ -495,5 +495,5 @@ if __name__ == "__main__":
         spread_dynamic.plot_all(type = 'both')
         if i % 5 == 0 or i == 29:
             print(spread_dynamic)
-        spread_dynamic.run()
+        spread_dynamic.step()
     plt.show()
