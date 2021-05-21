@@ -135,7 +135,7 @@ plt.show()
 ```
 * **Note:** For complex networks with more than 400 total nodes, these simulations can be computationally expensive. It is recommended to update the graph every few iterations.
 
-For more information, use the *help* command to view the library documentation.
+For more information, use the *help* command to view the library documentation. Moreover, you can see the results obtained in the project in the [final report](docs/report.pdf). 
 
 <!-- ROADMAP -->
 ## Roadmap
