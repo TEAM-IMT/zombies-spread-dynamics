@@ -113,7 +113,7 @@ To run through a cycle of the simulation, just execute the **step()** method, th
 ```python
 for epoch in tqdm.tqdm(range(20)): # Just 20 epochs
     dynamic.step() # Run one step in dynamic procedure
-    print(G) # See basic statistics at each iteration
+    print(dynamic) # See basic statistics at each iteration
 ```
 
 You can see how the graph changes through the simulation from different functions.  
@@ -130,7 +130,7 @@ for epoch in tqdm.tqdm(range(20)): # Just 20 epochs
         dynamic.plot_graph(type = graph_type) # Graph evolution
     elif kind_plot == 'all':
         dynamic.plot_all(type = graph_type) # Population + Graph evolution
-    print(G) # See basic statistics at each iteration
+    print(dynamic) # See basic statistics at each iteration
 plt.show()
 ```
 * **Note:** For complex networks with more than 400 total nodes, these simulations can be computationally expensive. It is recommended to update the graph every few iterations.
