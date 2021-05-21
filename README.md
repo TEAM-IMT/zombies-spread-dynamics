@@ -64,6 +64,8 @@ We find ourselves in an apocalyptic world plagued by zombies, whose origin happe
 
 Subsequently, the implementation of the dynamics is carried out, creating maps that simulate the propagation. Finally, 2 epidemic control action measures are executed, which involve the deployment of military troops and nuclear bombs, affecting the behavior of specific nodes in the network. All this in order to save as much of the remaining population as possible!
 
+For more information, you can see the [description of the project](docs/description.pdf).
+
 ### Built With
 * [python](https://rasa.com/)
 * [networkx](https://networkx.org/)
