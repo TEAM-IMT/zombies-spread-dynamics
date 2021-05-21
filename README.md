@@ -20,7 +20,7 @@
   <p align="center">
     Simulation of the spread of a zombie epidemic in Europe, based on the modeling of the territory with graph theory, in order to take control measures with military troops and nuclear bombs to save the largest possible population.
     <br />
-    <a href="https://github.com/Johansmm/zombies-spread-dynamics"><strong>Explore the docs »</strong></a>
+    <a href="docs"><strong>Explore the docs »</strong></a>
     <br />
     <br />
     <a href="https://github.com/Johansmm/zombies-spread-dynamics/blob/Main/demo.mp4">View Demo</a>
