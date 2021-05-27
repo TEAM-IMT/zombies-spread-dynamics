@@ -1,17 +1,17 @@
 ## Libraries ###########################################################
-import os, tqdm
+import os, tqdm, sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import colorama, time
 import datetime as dt
 colorama.init()
 
 import networkx as nx
+import pickle as pk
 
 ## Functions and Class #################################################
-class spread_zombie_dynamics:
+class spread_zombie_dynamics(object):
     """
     Class with functions modeling the spread of a zombie epidemic
 
@@ -56,17 +56,24 @@ class spread_zombie_dynamics:
     step()
         Execute one step in dynamic process
     
-    plot_evolution(self, ax: plt.axes = None, **kwargs: dict)
+    plot_evolution(ax: plt.axes = None, **kwargs: dict)
         Dynamic function that draw the evolution of both populations
 
-    plot_graph(self, ax: plt.axes = None, type: str = 'both', **kwargs: dict)
+    plot_graph(ax: plt.axes = None, type: str = 'both', **kwargs: dict)
         Dynamic function that draw the evolution of populations on graph
 
-    plot_all(self, axs: str = None, **kwargs: dict)
+    plot_all(axs: str = None, **kwargs: dict)
         Dynamic function that show a subplot with plot_evolution and plot_graph results
 
-    plot_zombie_age(self, ax: plt.axes = None, **kwargs: dict)
+    plot_zombie_age(ax: plt.axes = None, **kwargs: dict)
         Dynamic function that draw the evolution of zombie subpopulation
+
+    load_checkpoint(ck_path: str)
+        Load a specific checkpoint
+
+    save_checkpoint()
+        Save current states in a checkpoint file
+
     """
     
     ## Constructor
@@ -158,6 +165,13 @@ class spread_zombie_dynamics:
         # Internal subsets with age for each zombie-pop 
         self._subpop_zombies = pd.DataFrame(self._ini_zombie_pop, index = ['age_0']).T
         self._subpop_zombies[['age_' + str(x) for x in range(1, self.MAX_ZOMBIE_AGE)]] = 0
+        
+        # Internal df contribution
+        self._df_C = nx.get_edge_attributes(self.graph, 'elev_factor')
+        self._df_C.update({(n,n): 0.0 for n in self.graph.nodes})
+        self._df_C = pd.DataFrame(self._df_C, index = ['elev_factor']).T
+        self._df_C.index = pd.MultiIndex.from_tuples(self._df_C.index, names = ('c0','ci'))
+        self._df_C.reset_index('ci', inplace = True)
 
         # Restart control variables
         self._military_nodes, self._nuclear_nodes = set(), set()
@@ -182,13 +196,9 @@ class spread_zombie_dynamics:
             - Step 3: Update evolutional attributes
         """
         self._age_update() # Step 0
-        #print("[INFO] step 0 ")
         self._zombies_propagation() # Step 1
-        #print("[INFO] step 1 ")
         self._zombie_human_interactions() # Step 2
-        #print("[INFO] step 2 ")
         self._update() # Step 3
-        #print("[INFO] step 3 ")
 
     def plot_evolution(self, ax: plt.axes = None, **kwargs: dict):
         """
@@ -336,6 +346,26 @@ class spread_zombie_dynamics:
         self.__postplot('_fig_all')
         return axs_plot
 
+    def load_checkpoint(self, ck_path: str):
+        """
+        Load a specific checkpoint 
+            
+        Parameters
+        ----------
+            ck_path: str
+                Path with checkpoint to load, in .dyn extension
+        """
+        with open(ck_path, 'rb') as f:
+            self.__dict__.update(pk.load(f).__dict__)    
+
+    def save_checkpoint(self):
+        """
+        Save current states in a checkpoint file
+        """
+        if not os.path.isdir('checkpoints'): os.mkdir('checkpoints')
+        with open("checkpoints/szd_{0:%d-%m-%Y}.dyn".format(self.current_date), 'wb') as f:
+            pk.dump(self, f)
+
     ## Inner methods
     def _age_update(self):
         """
@@ -359,20 +389,39 @@ class spread_zombie_dynamics:
         Estimate contribution of zombies from neighboring nodes to current node (C(c0,ci)) to update zombies population.
         """
         # Zombie contribution in all graph + (ci,ci) contribution (with itself)
-        self.forbidden_cells = self._military_nodes | self._nuclear_nodes
-        index_edges = set(list(self.graph.edges) + [(n,n) for n in self.graph.nodes])
-        df_C = pd.DataFrame(index = index_edges, columns = self._subpop_zombies.columns)
-        df_C = df_C.apply(lambda x: self.__zombies_contribution(x.name), axis = 1, result_type = 'broadcast')
-        df_C.index = pd.MultiIndex.from_tuples(df_C.index, names = ('c0','ci'))
+        self._forbidden_cells = self._military_nodes | self._nuclear_nodes
+        
+        df_C = self._df_C.copy()
+        df_C['sum_human_pop'] = df_C.apply(lambda x: self.__sum_neighbors(x.name), axis = 1)
+        df_C = df_C.merge(pd.DataFrame(nx.get_node_attributes(self.graph, 'human_pop'), index = ['human_pop']).T, 
+                            right_index = True, left_on = 'ci', how = 'left')
+        for fc in self._forbidden_cells: df_C.loc[df_C['ci'] == fc, 'elev_factor'] = 0.0 # Change factor in special cells
 
+        # Else contribution type
+        df_C['C'] = 0.0
+
+        # First contribution type
+        aux_index = (df_C['ci'] != df_C.index) & (df_C['sum_human_pop'] > 0.0) 
+        df_C.loc[aux_index, 'C'] = df_C.loc[aux_index, 'elev_factor']*df_C.loc[aux_index, 'human_pop']/df_C.loc[aux_index, 'sum_human_pop']
+
+        # Second contribution type
+        df_C.loc[(df_C['ci'] == df_C.index) & (df_C['sum_human_pop'] == 0.0),'C'] = 1.0
+
+        # Find zombie contribution in all nodes by subpopulation
+        df_C = df_C.merge(self._subpop_zombies, left_index = True, right_index = True, how = 'left')
+        aux_col = [x for x in df_C.columns if 'age' in x]
+        df_C[aux_col] = df_C[aux_col].multiply(df_C['C'], axis = "index").applymap(np.floor).applymap(int)
+        df_C.drop(columns = ['elev_factor', 'sum_human_pop', 'human_pop', 'C'], inplace = True)
+        
         # Calculate zombie pop that didn't move
-        df_zhat = self._subpop_zombies - df_C.groupby(level = 'c0').agg(np.sum)
+        aux = pd.DataFrame({key: df_C.loc[key].values[:,1:].sum(axis = 0) for key in df_C.index.unique()}).T.add_prefix('age_')
+        df_zhat = self._subpop_zombies - aux
 
         # Zombie spread and update in network
-        self._subpop_zombies = df_C.groupby(level = 'ci').agg(np.sum) + df_zhat
-        print("[INFO] Second step 3 ")
-        nx.set_node_attributes(self.graph, self._subpop_zombies.sum(axis = 1).to_dict(), name = 'zombie_pop')
-        
+        df_C.set_index('ci', inplace = True)
+        df_C = pd.DataFrame({key: df_C.loc[key].values.sum(axis = 0) for key in df_C.index.unique()}).T.add_prefix('age_')
+        self._subpop_zombies = df_C + df_zhat
+        nx.set_node_attributes(self.graph, self._subpop_zombies.sum(axis = 1).to_dict(), name = 'zombie_pop')       
 
     def _zombie_human_interactions(self):
         """
@@ -431,23 +480,12 @@ class spread_zombie_dynamics:
             self._nuclear_nodes = self._nuclear_nodes.intersection(self.graph.nodes)
 
     ## Other methods
-    def __zombies_contribution(self, edge):
+    def __sum_neighbors(self, nsource):
         """
-        Estimate contribution of zombies C(c0,ci), with ci neighbord of c0 or ci = c0, taking into account 
-        military trops or nuclear bombs effects
+        Estimate population around node source given by neighbors
         """
-        sum_human_pop = sum([self.graph.nodes[n]['human_pop']*self.graph.edges[(edge[0],n)]['elev_factor'] 
-                            for n in nx.neighbors(self.graph, edge[0]) if n not in self.forbidden_cells])
-        elev_factor = self.graph.edges[edge]['elev_factor'] if edge[1] not in self.forbidden_cells and edge[0] != edge[1] else 0.0
-        
-        if edge[0] != edge[1] and sum_human_pop > 0:
-            C = elev_factor*self.graph.nodes[edge[1]]['human_pop']/sum_human_pop
-            C = np.floor(C * self._subpop_zombies.loc[edge[0]].values).astype(int)
-        elif edge[0] == edge[1] and sum_human_pop == 0:
-            C = self._subpop_zombies.loc[edge[0]].values
-        else:
-            C = np.array([0]*self.MAX_ZOMBIE_AGE)
-        return C
+        return sum([self.graph.nodes[n]['human_pop']*self.graph.edges[(nsource,n)]['elev_factor'] 
+                for n in self.graph.neighbors(nsource) if n not in self._forbidden_cells])
 
     def __preplot(self, figname, axname, ax, **kwargs):
         self._trigger = False
@@ -477,6 +515,7 @@ def graph_by_default(nodes = 5, isprint = False):
     G.add_edges_from(sum(new_edges,[]))
     nx.set_node_attributes(G, {n: {'node_id': 'U' + str(i), 'human_pop': 1500, 'zombie_pop': 0} 
                                 for i, n in enumerate(G.nodes)})
+    pos = {G.nodes[n]['node_id']:(n[1],-n[0]) for n in G.nodes}
     G = nx.relabel_nodes(G, nx.get_node_attributes(G, 'node_id')) # Rename node_label
 
     # Initial zombie pop in only one node ('middle')
@@ -491,16 +530,20 @@ def graph_by_default(nodes = 5, isprint = False):
         for key in ['node_id', 'human_pop', 'zombie_pop']:
             print(key, ":", nx.get_node_attributes(G, key))
         print("\n[INFO] Edge info: \nelev_factor:", nx.get_edge_attributes(G, 'elev_factor'))
-    return G
+    return G, pos
 
 if __name__ == "__main__":
     os.system('clear'); os.system('clear')
-    G = graph_by_default(20)
+    G,pos = graph_by_default(20)
     initial_date = dt.datetime(year = 2019, month = 8, day = 18)
     spread_dynamic = spread_zombie_dynamics(G, INTIAL_DATE = initial_date)
-    for i in tqdm.tqdm(range(50)):
-        spread_dynamic.plot_all(type = 'both')
-        if i % 5 == 0 or i == 29:
-            print(spread_dynamic)
+    spread_dynamic.graph_pos = pos
+    print("[INFO] Simulation start...")
+    tlist = list(range(10))
+    for i in tqdm.tqdm(tlist):
+        if i % 5 == 0 or i == tlist[-1]:
+            spread_dynamic.plot_all(type = 'both')
+            spread_dynamic.save_checkpoint()
+        print(spread_dynamic)
         spread_dynamic.step()
     plt.show()
