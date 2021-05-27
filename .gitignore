@@ -2,3 +2,6 @@
 *.bmp
 *.gexf
 
+# Python ignore
+.ipynb_checkpoints
+__pycache__

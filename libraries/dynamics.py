@@ -134,13 +134,13 @@ class spread_zombie_dynamics:
     def __str__(self):
         s = "-"*30 + "\nINITIAL GRAPH DESCRIPTION:\n" + nx.info(self.graph) + "\n"
         human_pop, zombie_pop = self.evolution.iloc[0]['human_pop'], self.evolution.iloc[0]['zombie_pop']
-        s += "Initial date of epidemic:\t{}\n".format(self.INTIAL_DATE)
+        s += "Initial date of epidemic:\t{0:%d-%m-%Y}\n".format(self.INTIAL_DATE)
         s += "Initial human population: \t{0} ({1:.2f}\% of all population)\n".format(human_pop, 100*human_pop/self.TOTAL_POPULATION)
         s += "Initial zombie population: \t{0} ({1:.2f}\% of all population)\n".format(zombie_pop, 100*zombie_pop/self.TOTAL_POPULATION)
 
         s += "\nCURRENT GRAPH DESCRIPTION\n"
         human_pop, zombie_pop = self.evolution.iloc[-1]['human_pop'], self.evolution.iloc[-1]['zombie_pop']
-        s += "Date of epidemic:\t\t{}\n".format(self.current_date)
+        s += "Date of epidemic:\t\t{0:%d-%m-%Y}\n".format(self.current_date)
         s += "Total human population: \t{0} ({1:.2f}\% of all population)\n".format(human_pop, 100*human_pop/self.TOTAL_POPULATION)
         s += "Total zombie population: \t{0} ({1:.2f}\% of all population)\n".format(zombie_pop, 100*zombie_pop/self.TOTAL_POPULATION)
         s += "-"*30
@@ -170,7 +170,7 @@ class spread_zombie_dynamics:
         self._fig_all, self._axs_all = None, None
         self._fig_evol, self._ax_evol = None, None
         self._fig_zombie, self._ax_zombie = None, None
-        self._fig_graph, self._ax_graph, self._graph_pos, self._colorbar = None, None, None, None
+        self._fig_graph, self._ax_graph, self.graph_pos, self._colorbar = None, None, None, None
         plt.close('all')
 
     def step(self):
@@ -182,9 +182,13 @@ class spread_zombie_dynamics:
             - Step 3: Update evolutional attributes
         """
         self._age_update() # Step 0
+        #print("[INFO] step 0 ")
         self._zombies_propagation() # Step 1
+        #print("[INFO] step 1 ")
         self._zombie_human_interactions() # Step 2
+        #print("[INFO] step 2 ")
         self._update() # Step 3
+        #print("[INFO] step 3 ")
 
     def plot_evolution(self, ax: plt.axes = None, **kwargs: dict):
         """
@@ -256,7 +260,8 @@ class spread_zombie_dynamics:
                 Axes where the network states plot was drawed.
         """
         # Preprocess
-        if self._graph_pos is None: self._graph_pos = nx.spring_layout(self.graph, iterations = 1000)
+        if self.graph_pos is None: 
+            self.graph_pos = nx.spring_layout(self.graph, iterations = 1000)
         ax_plot = self.__preplot('_fig_graph', '_ax_graph', ax, **kwargs)
 
         # Calculate populations in each node, and define them as color
@@ -285,8 +290,8 @@ class spread_zombie_dynamics:
         if midpoint is None: midpoint = vmax/2
 
         # Plot network and colorbar
-        nx.draw_networkx_edges(self.graph, self._graph_pos, edge_color = 'k', ax = ax_plot, arrows = False, alpha = 0.4)
-        plot = nx.draw_networkx_nodes(self.graph, self._graph_pos, cmap = plt.get_cmap('jet'), ax = ax_plot,
+        nx.draw_networkx_edges(self.graph, self.graph_pos, edge_color = 'k', ax = ax_plot, arrows = False, alpha = 0.4)
+        plot = nx.draw_networkx_nodes(self.graph, self.graph_pos, cmap = plt.get_cmap('jet'), ax = ax_plot,
                             node_size = 10, node_color = node_color, vmin = -1, vmax = 1)
         
         if self._colorbar is not None: self._colorbar.remove() # Remove previous colorbar
@@ -295,7 +300,7 @@ class spread_zombie_dynamics:
         self._colorbar.ax.set_yticklabels(["{} zom.".format(vmin), "{} pop.".format(midpoint), "{} hum.".format(vmax)])
         ax_plot.set_xlabel("Current day : {0:%b. %d, %Y}".format(self.current_date))
 
-        # limits = np.array(list(self._graph_pos.values()))
+        # limits = np.array(list(self.graph_pos.values()))
         # limits = [cut * limits[:,0].max(), cut * limits[:,1].max()]
         # ax_plot.set_xlim([-limits[0], limits[0]])
         # ax_plot.set_ylim([-limits[1], limits[1]])
@@ -354,6 +359,7 @@ class spread_zombie_dynamics:
         Estimate contribution of zombies from neighboring nodes to current node (C(c0,ci)) to update zombies population.
         """
         # Zombie contribution in all graph + (ci,ci) contribution (with itself)
+        self.forbidden_cells = self._military_nodes | self._nuclear_nodes
         index_edges = set(list(self.graph.edges) + [(n,n) for n in self.graph.nodes])
         df_C = pd.DataFrame(index = index_edges, columns = self._subpop_zombies.columns)
         df_C = df_C.apply(lambda x: self.__zombies_contribution(x.name), axis = 1, result_type = 'broadcast')
@@ -364,7 +370,9 @@ class spread_zombie_dynamics:
 
         # Zombie spread and update in network
         self._subpop_zombies = df_C.groupby(level = 'ci').agg(np.sum) + df_zhat
+        print("[INFO] Second step 3 ")
         nx.set_node_attributes(self.graph, self._subpop_zombies.sum(axis = 1).to_dict(), name = 'zombie_pop')
+        
 
     def _zombie_human_interactions(self):
         """
@@ -428,10 +436,9 @@ class spread_zombie_dynamics:
         Estimate contribution of zombies C(c0,ci), with ci neighbord of c0 or ci = c0, taking into account 
         military trops or nuclear bombs effects
         """
-        forbidden_cells = self._military_nodes | self._nuclear_nodes
         sum_human_pop = sum([self.graph.nodes[n]['human_pop']*self.graph.edges[(edge[0],n)]['elev_factor'] 
-                            for n in nx.neighbors(self.graph, edge[0]) if n not in forbidden_cells])
-        elev_factor = self.graph.edges[edge]['elev_factor'] if edge[1] not in forbidden_cells and edge[0] != edge[1] else 0.0
+                            for n in nx.neighbors(self.graph, edge[0]) if n not in self.forbidden_cells])
+        elev_factor = self.graph.edges[edge]['elev_factor'] if edge[1] not in self.forbidden_cells and edge[0] != edge[1] else 0.0
         
         if edge[0] != edge[1] and sum_human_pop > 0:
             C = elev_factor*self.graph.nodes[edge[1]]['human_pop']/sum_human_pop
