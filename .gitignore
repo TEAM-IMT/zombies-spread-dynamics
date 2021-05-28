@@ -1,7 +1,9 @@
 # Ignore extension
 *.bmp
 *.gexf
+*.dyn
 
 # Python ignore
 .ipynb_checkpoints
 __pycache__
+checkpoints
