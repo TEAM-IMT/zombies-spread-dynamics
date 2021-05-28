@@ -165,6 +165,7 @@ class spread_zombie_dynamics:
         # Internal subsets with age for each zombie-pop 
         self._subpop_zombies = pd.DataFrame(self._ini_zombie_pop, index = ['age_0']).T
         self._subpop_zombies[['age_' + str(x) for x in range(1, self.MAX_ZOMBIE_AGE)]] = 0
+        self.edgecolor = 'k'
         
         # Internal df contribution
         self._df_C = nx.get_edge_attributes(self.graph, 'elev_factor')
@@ -299,7 +300,7 @@ class spread_zombie_dynamics:
         if midpoint is None: midpoint = vmax/2
 
         # Plot network and colorbar
-        nx.draw_networkx_edges(self.graph, self.graph_pos, edge_color = 'k', ax = ax_plot, arrows = False, alpha = 0.4)
+        nx.draw_networkx_edges(self.graph, self.graph_pos, edge_color = self.edgecolor, ax = ax_plot, arrows = False, alpha = 0.4)
         plot = nx.draw_networkx_nodes(self.graph, self.graph_pos, cmap = plt.get_cmap('jet'), ax = ax_plot,
                             node_size = 10, node_color = node_color, vmin = -1, vmax = 1)
         
@@ -308,7 +309,7 @@ class spread_zombie_dynamics:
         self._colorbar = ax_plot.figure.colorbar(plot, ax = ax_plot, label = label, ticks = [-1, 0, 1])
         self._colorbar.ax.set_yticklabels(["{} zom.".format(vmin), "{} pop.".format(midpoint), "{} hum.".format(vmax)])
         ax_plot.set_xlabel("Current day : {0:%b. %d, %Y}".format(self.current_date))
-
+        ax_plot.grid(False) # Remove grid
         # limits = np.array(list(self.graph_pos.values()))
         # limits = [cut * limits[:,0].max(), cut * limits[:,1].max()]
         # ax_plot.set_xlim([-limits[0], limits[0]])
@@ -389,10 +390,9 @@ class spread_zombie_dynamics:
         Estimate contribution of zombies from neighboring nodes to current node (C(c0,ci)) to update zombies population.
         """
         # tic = time.time()
-
-        # Zombie contribution in all graph + (ci,ci) contribution (with itself)
         self._forbidden_cells = self._military_nodes | self._nuclear_nodes
         
+        # Zombie contribution in all graph + (ck,ck) contribution (with itself)
         df_C = self._df_C.copy()
         df_C['sum_human_pop'] = df_C.apply(lambda x: self.__sum_neighbors(x.name), axis = 1)
         df_C = df_C.merge(pd.DataFrame(nx.get_node_attributes(self.graph, 'human_pop'), index = ['human_pop']).T, 
