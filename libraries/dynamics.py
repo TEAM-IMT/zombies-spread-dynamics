@@ -181,10 +181,9 @@ class spread_zombie_dynamics:
         self.TOTAL_POPULATION = self.total_humans + self.total_zombies
         
         # Graph controls
-        self._fig_all, self._axs_all = None, None
-        self._fig_evol, self._ax_evol = None, None
-        self._fig_zombie, self._ax_zombie = None, None
-        self._fig_graph, self._ax_graph, self.graph_pos, self._colorbar = None, None, None, None
+        self._axs_all, self._ax_evol, self._ax_zombie = None, None, None
+        self._current_ax = None
+        self._ax_graph, self.graph_pos, self._colorbar = None, None, None
         plt.close('all')
 
     def step(self):
@@ -217,10 +216,10 @@ class spread_zombie_dynamics:
             ax_plot: matplotlib.pyplot.axes
                 Axes where the evolution plot was drawed.
         """
-        ax_plot = self.__preplot('_fig_evol', '_ax_evol', ax) # Preprocess
+        ax_plot = self.__preplot('_ax_evol', ax) # Preprocess
         ax_plot = self.evolution.plot(use_index = True, y = ['zombie_pop', 'human_pop'], kind = 'line', ax = ax_plot,
                                     xlabel = 'Date', ylabel = 'Population', marker = '.', cmap = plt.get_cmap('jet'))
-        self.__postplot('_fig_evol') # Postprocess
+        self.__postplot(ax_plot) # Postprocess
         return ax_plot
 
     def plot_zombie_age(self, ax: plt.axes = None, **kwargs: dict):
@@ -240,10 +239,10 @@ class spread_zombie_dynamics:
             ax_plot: matplotlib.pyplot.axes
                 Axes where the evolution plot was drawed.
         """
-        ax_plot = self.__preplot('_fig_zombie', '_ax_zombie', ax) # Preprocess
+        ax_plot = self.__preplot('_ax_zombie', ax) # Preprocess
         ax_plot = self.evolution.plot(use_index = True, y = ['age_' + str(x) for x in range(self.MAX_ZOMBIE_AGE)], kind = 'line', 
                                 ax = ax_plot, xlabel = 'Date', ylabel = 'Zombie population', marker = '.', cmap = plt.get_cmap('tab20'))
-        self.__postplot('_fig_zombie') # Postprocess
+        self.__postplot(ax_plot) # Postprocess
         return ax_plot
 
     def plot_graph(self, ax: plt.axes = None, type: str = 'both', **kwargs: dict):
@@ -272,7 +271,7 @@ class spread_zombie_dynamics:
         # Preprocess
         if self.graph_pos is None: 
             self.graph_pos = nx.spring_layout(self.graph, iterations = 1000)
-        ax_plot = self.__preplot('_fig_graph', '_ax_graph', ax, **kwargs)
+        ax_plot = self.__preplot('_ax_graph', ax, **kwargs)
 
         # Calculate populations in each node, and define them as color
         vmin, vmax = 0, self.evolution.loc[self.current_date, 'max_human_pop_node']
@@ -294,7 +293,7 @@ class spread_zombie_dynamics:
                 node_color.append(self.graph.nodes[node]['human_pop'] - self.graph.nodes[node]['zombie_pop'])
                 if node_color[-1] < 0: node_color[-1] = 0 if vmin == 0 else node_color[-1]/vmin
                 else: node_color[-1] = 0 if vmax == 0 else node_color[-1]/vmax
-            label = "Human - zombie difference per node"
+            label = "Human - zombie diff. per node"
         else:
             raise colorama.Fore.RED + "[ERROR] Choose one type inside ['zombie','human','both']." + colorama.Fore.RESET
         if midpoint is None: midpoint = vmax/2
@@ -304,7 +303,7 @@ class spread_zombie_dynamics:
         plot = nx.draw_networkx_nodes(self.graph, self.graph_pos, cmap = plt.get_cmap('jet'), ax = ax_plot,
                             node_size = 10, node_color = node_color, vmin = -1, vmax = 1)
         
-        if self._colorbar is not None: self._colorbar.remove() # Remove previous colorbar
+        if self._colorbar is not None and ax_plot == self._current_ax: self._colorbar.remove() # Remove previous colorbar
 
         self._colorbar = ax_plot.figure.colorbar(plot, ax = ax_plot, label = label, ticks = [-1, 0, 1])
         self._colorbar.ax.set_yticklabels(["{} zom.".format(vmin), "{} pop.".format(midpoint), "{} hum.".format(vmax)])
@@ -315,7 +314,8 @@ class spread_zombie_dynamics:
         # ax_plot.set_xlim([-limits[0], limits[0]])
         # ax_plot.set_ylim([-limits[1], limits[1]])
         
-        self.__postplot('_fig_graph') # Postprocess
+        self.__postplot(ax_plot) # Postprocess
+        if self._current_ax is None: self._current_ax = ax_plot
         return ax_plot
 
     def plot_all(self, axs: str = None, type : str = 'both', **kwargs: dict):
@@ -340,10 +340,10 @@ class spread_zombie_dynamics:
             axs_plot: list of matplotlib.pyplot.axes
                 List of axes where the network states plot was drawed.
         """
-        axs_plot = self.__preplot('_fig_all', '_axs_all', axs, ncols = 2, figsize = (10,5), **kwargs)
+        axs_plot = self.__preplot('_axs_all', axs, ncols = 2, figsize = (10,5), **kwargs)
         self.plot_evolution(ax = axs_plot[0])
         self.plot_graph(ax = axs_plot[1], type = type)
-        self.__postplot('_fig_all')
+        self.__postplot(axs_plot)
         return axs_plot
 
     def load_checkpoint(self, ck_path: str):
@@ -505,23 +505,24 @@ class spread_zombie_dynamics:
         return sum([self.graph.nodes[n]['human_pop']*self.graph.edges[(nsource,n)]['elev_factor'] 
                 for n in self.graph.neighbors(nsource) if n not in self._forbidden_cells])
 
-    def __preplot(self, figname, axname, ax, **kwargs):
+    def __preplot(self, axname, ax, **kwargs):
         self._trigger = False
-        if self.__dict__[figname] is None and ax is None: 
-            if '_fig_all' == figname:
-                self.__dict__[figname], self.__dict__[axname] = plt.subplots(**kwargs)
-            else:
-                self.__dict__[figname], self.__dict__[axname] = plt.subplots(**kwargs)
+        if self.__dict__[axname] is None and ax is None: 
+            _, self.__dict__[axname] = plt.subplots(**kwargs)
             self._trigger = True
         
         ax_plot = self.__dict__[axname] if ax is None else ax
         plt.ion() # Enable interactive plots
-        if '_fig_all' != figname: ax_plot.cla() # Remove previous plots
+        try: ax_plot.cla() # Remove previous plots
+        except: pass
         return ax_plot
 
-    def __postplot(self, figname):
-        if self._trigger: self.__dict__[figname].tight_layout() # Border reduction
-        plt.pause(0.001) # Short time to redraw plot
+    def __postplot(self, ax):
+        try: fig = ax.figure
+        except: fig = ax[0].figure
+        if self._trigger: fig.tight_layout() # Border reduction
+        fig.canvas.draw() # Update plot
+        plt.pause(0.01) # Short time to redraw plot
         plt.ioff() # Disable interactive plots
 
 ## Main ################################################################
@@ -557,11 +558,23 @@ if __name__ == "__main__":
     spread_dynamic = spread_zombie_dynamics(G, INTIAL_DATE = initial_date)
     spread_dynamic.graph_pos = pos
     print("[INFO] Simulation start...")
+
     tlist = list(range(10))
     for i in tqdm.tqdm(tlist):
-        if i % 5 == 0 or i == tlist[-1]:
-            spread_dynamic.save_checkpoint()
         spread_dynamic.plot_all(type = 'both')
-        print(spread_dynamic)
         spread_dynamic.step()
+    print(spread_dynamic)
     plt.show()
+
+    # fig, axs = plt.subplots(nrows = 2, ncols = 2, figsize = (20,15))
+    # ax_info = {
+    #     "18-08-2019": axs[0,0], "20-08-2019": axs[0,1],
+    #     "22-08-2019": axs[1,0], "03-10-2019": axs[1,1],
+    # }
+    # for epoch in tqdm.tqdm(range(10)): # 2 months
+    #     current_date = "{0:%d-%m-%Y}".format(spread_dynamic.current_date)
+    #     if current_date in ax_info.keys():
+    #         spread_dynamic.plot_graph(ax = ax_info[current_date])
+    #         if current_date == "03-10-2019": break
+    #         print(spread_dynamic) # See basic statistics at each iteration
+    #     spread_dynamic.step() # Run one step in dynamic procedure
