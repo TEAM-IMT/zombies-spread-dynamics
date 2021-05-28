@@ -183,8 +183,8 @@ class spread_zombie_dynamics:
         
         # Graph controls
         self._axs_all, self._ax_evol, self._ax_zombie = None, None, None
-        self._current_ax = None
-        self._ax_graph, self.graph_pos, self._colorbar = None, None, None
+        # self._current_ax, self._colorbar = None, None
+        self._ax_graph, self.graph_pos = None, None
         plt.close('all')
 
     def step(self):
@@ -304,10 +304,11 @@ class spread_zombie_dynamics:
         plot = nx.draw_networkx_nodes(self.graph, self.graph_pos, cmap = plt.get_cmap('jet'), ax = ax_plot,
                             node_size = 10, node_color = node_color, vmin = -1, vmax = 1)
         
-        if self._colorbar is not None and ax_plot == self._current_ax: self._colorbar.remove() # Remove previous colorbar
+        # if len(ax_plot.collections) > 0: ax
+        # if self._colorbar is not None and ax_plot == self._current_ax: self._colorbar.remove() # Remove previous colorbar
 
-        self._colorbar = ax_plot.figure.colorbar(plot, ax = ax_plot, label = label, ticks = [-1, 0, 1])
-        self._colorbar.ax.set_yticklabels(["{} zom.".format(vmin), "{} pop.".format(midpoint), "{} hum.".format(vmax)])
+        colorbar = ax_plot.figure.colorbar(plot, ax = ax_plot, label = label, ticks = [-1, 0, 1])
+        colorbar.ax.set_yticklabels(["{} zom.".format(vmin), "{} pop.".format(midpoint), "{} hum.".format(vmax)])
         ax_plot.set_xlabel("Current day : {0:%b. %d, %Y}".format(self.current_date))
         ax_plot.grid(False) # Remove grid
         # limits = np.array(list(self.graph_pos.values()))
@@ -316,7 +317,7 @@ class spread_zombie_dynamics:
         # ax_plot.set_ylim([-limits[1], limits[1]])
         
         self.__postplot(ax_plot) # Postprocess
-        if self._current_ax is None: self._current_ax = ax_plot
+        # if self._current_ax is None: self._current_ax = ax_plot
         return ax_plot
 
     def plot_all(self, axs: str = None, type : str = 'both', **kwargs: dict):
@@ -513,7 +514,9 @@ class spread_zombie_dynamics:
         
         ax_plot = self.__dict__[axname] if ax is None else ax
         plt.ion() # Enable interactive plots
-        try: ax_plot.cla() # Remove previous plots
+        try: 
+            ax_plot.cla() # Remove previous plots
+            ax_plot.collections[1].colorbar.remove()
         except: pass
         return ax_plot
 
