@@ -514,9 +514,11 @@ class spread_zombie_dynamics:
         
         ax_plot = self.__dict__[axname] if ax is None else ax
         plt.ion() # Enable interactive plots
-        try: 
-            ax_plot.cla() # Remove previous plots
+        try:
             ax_plot.collections[1].colorbar.remove()
+        except: pass
+        try:
+            ax_plot.cla() # Remove previous plots
         except: pass
         return ax_plot
 
