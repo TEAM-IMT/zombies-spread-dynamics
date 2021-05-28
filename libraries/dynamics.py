@@ -165,6 +165,7 @@ class spread_zombie_dynamics:
         # Internal subsets with age for each zombie-pop 
         self._subpop_zombies = pd.DataFrame(self._ini_zombie_pop, index = ['age_0']).T
         self._subpop_zombies[['age_' + str(x) for x in range(1, self.MAX_ZOMBIE_AGE)]] = 0
+        self.edgecolor = 'k'
         
         # Internal df contribution
         self._df_C = nx.get_edge_attributes(self.graph, 'elev_factor')
@@ -182,8 +183,8 @@ class spread_zombie_dynamics:
         
         # Graph controls
         self._axs_all, self._ax_evol, self._ax_zombie = None, None, None
-        self._current_ax = None
-        self._ax_graph, self.graph_pos, self._colorbar = None, None, None
+        # self._current_ax, self._colorbar = None, None
+        self._ax_graph, self.graph_pos = None, None
         plt.close('all')
 
     def step(self):
@@ -299,23 +300,24 @@ class spread_zombie_dynamics:
         if midpoint is None: midpoint = vmax/2
 
         # Plot network and colorbar
-        nx.draw_networkx_edges(self.graph, self.graph_pos, edge_color = 'k', ax = ax_plot, arrows = False, alpha = 0.4)
+        nx.draw_networkx_edges(self.graph, self.graph_pos, edge_color = self.edgecolor, ax = ax_plot, arrows = False, alpha = 0.4)
         plot = nx.draw_networkx_nodes(self.graph, self.graph_pos, cmap = plt.get_cmap('jet'), ax = ax_plot,
                             node_size = 10, node_color = node_color, vmin = -1, vmax = 1)
         
-        if self._colorbar is not None and ax_plot == self._current_ax: self._colorbar.remove() # Remove previous colorbar
+        # if len(ax_plot.collections) > 0: ax
+        # if self._colorbar is not None and ax_plot == self._current_ax: self._colorbar.remove() # Remove previous colorbar
 
-        self._colorbar = ax_plot.figure.colorbar(plot, ax = ax_plot, label = label, ticks = [-1, 0, 1])
-        self._colorbar.ax.set_yticklabels(["{} zom.".format(vmin), "{} pop.".format(midpoint), "{} hum.".format(vmax)])
+        colorbar = ax_plot.figure.colorbar(plot, ax = ax_plot, label = label, ticks = [-1, 0, 1])
+        colorbar.ax.set_yticklabels(["{} zom.".format(vmin), "{} pop.".format(midpoint), "{} hum.".format(vmax)])
         ax_plot.set_xlabel("Current day : {0:%b. %d, %Y}".format(self.current_date))
-
+        ax_plot.grid(False) # Remove grid
         # limits = np.array(list(self.graph_pos.values()))
         # limits = [cut * limits[:,0].max(), cut * limits[:,1].max()]
         # ax_plot.set_xlim([-limits[0], limits[0]])
         # ax_plot.set_ylim([-limits[1], limits[1]])
         
         self.__postplot(ax_plot) # Postprocess
-        if self._current_ax is None: self._current_ax = ax_plot
+        # if self._current_ax is None: self._current_ax = ax_plot
         return ax_plot
 
     def plot_all(self, axs: str = None, type : str = 'both', **kwargs: dict):
@@ -389,10 +391,9 @@ class spread_zombie_dynamics:
         Estimate contribution of zombies from neighboring nodes to current node (C(c0,ci)) to update zombies population.
         """
         # tic = time.time()
-
-        # Zombie contribution in all graph + (ci,ci) contribution (with itself)
         self._forbidden_cells = self._military_nodes | self._nuclear_nodes
         
+        # Zombie contribution in all graph + (ck,ck) contribution (with itself)
         df_C = self._df_C.copy()
         df_C['sum_human_pop'] = df_C.apply(lambda x: self.__sum_neighbors(x.name), axis = 1)
         df_C = df_C.merge(pd.DataFrame(nx.get_node_attributes(self.graph, 'human_pop'), index = ['human_pop']).T, 
@@ -513,7 +514,11 @@ class spread_zombie_dynamics:
         
         ax_plot = self.__dict__[axname] if ax is None else ax
         plt.ion() # Enable interactive plots
-        try: ax_plot.cla() # Remove previous plots
+        try:
+            ax_plot.collections[1].colorbar.remove()
+        except: pass
+        try:
+            ax_plot.cla() # Remove previous plots
         except: pass
         return ax_plot
 
