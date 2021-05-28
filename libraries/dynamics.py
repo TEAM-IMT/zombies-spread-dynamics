@@ -11,7 +11,7 @@ import networkx as nx
 import pickle as pk
 
 ## Functions and Class #################################################
-class spread_zombie_dynamics(object):
+class spread_zombie_dynamics:
     """
     Class with functions modeling the spread of a zombie epidemic
 
@@ -388,6 +388,8 @@ class spread_zombie_dynamics(object):
         """
         Estimate contribution of zombies from neighboring nodes to current node (C(c0,ci)) to update zombies population.
         """
+        # tic = time.time()
+
         # Zombie contribution in all graph + (ci,ci) contribution (with itself)
         self._forbidden_cells = self._military_nodes | self._nuclear_nodes
         
@@ -396,6 +398,9 @@ class spread_zombie_dynamics(object):
         df_C = df_C.merge(pd.DataFrame(nx.get_node_attributes(self.graph, 'human_pop'), index = ['human_pop']).T, 
                             right_index = True, left_on = 'ci', how = 'left')
         for fc in self._forbidden_cells: df_C.loc[df_C['ci'] == fc, 'elev_factor'] = 0.0 # Change factor in special cells
+
+        # print("[INFO] step 1.0: first merge", time.time() - tic)
+        # tic = time.time()
 
         # Else contribution type
         df_C['C'] = 0.0
@@ -413,14 +418,27 @@ class spread_zombie_dynamics(object):
         df_C[aux_col] = df_C[aux_col].multiply(df_C['C'], axis = "index").applymap(np.floor).applymap(int)
         df_C.drop(columns = ['elev_factor', 'sum_human_pop', 'human_pop', 'C'], inplace = True)
         
+        # print("[INFO] step 1.1: contribution", time.time() - tic)
+        # tic = time.time()
+
         # Calculate zombie pop that didn't move
-        aux = pd.DataFrame({key: df_C.loc[key].values[:,1:].sum(axis = 0) for key in df_C.index.unique()}).T.add_prefix('age_')
-        df_zhat = self._subpop_zombies - aux
+        # df_C.sort_index(inplace = True)
+        # aux = pd.DataFrame({key: df_C.loc[[key]].values[:,1:].sum(axis = 0) for key in df_C.index.unique()}).T.add_prefix('age_')
+        # df_zhat = self._subpop_zombies - aux
+        df_zhat = self._subpop_zombies - df_C.drop(columns = 'ci').groupby(df_C.index).sum()
+
+        # print("[INFO] step 1.2: first agg", time.time() - tic)
+        # tic = time.time()
 
         # Zombie spread and update in network
         df_C.set_index('ci', inplace = True)
-        df_C = pd.DataFrame({key: df_C.loc[key].values.sum(axis = 0) for key in df_C.index.unique()}).T.add_prefix('age_')
-        self._subpop_zombies = df_C + df_zhat
+        # df_C.sort_index(inplace = True)
+        # df_C = pd.DataFrame({key: df_C.loc[[key]].values.sum(axis = 0) for key in df_C.index.unique()}).T.add_prefix('age_')
+        self._subpop_zombies = df_C.groupby(df_C.index).sum() + df_zhat
+
+        # print("[INFO] step 1.3: second agg", time.time() - tic)
+        # tic = time.time()
+
         nx.set_node_attributes(self.graph, self._subpop_zombies.sum(axis = 1).to_dict(), name = 'zombie_pop')       
 
     def _zombie_human_interactions(self):
@@ -534,7 +552,7 @@ def graph_by_default(nodes = 5, isprint = False):
 
 if __name__ == "__main__":
     os.system('clear'); os.system('clear')
-    G,pos = graph_by_default(20)
+    G,pos = graph_by_default(100)
     initial_date = dt.datetime(year = 2019, month = 8, day = 18)
     spread_dynamic = spread_zombie_dynamics(G, INTIAL_DATE = initial_date)
     spread_dynamic.graph_pos = pos
@@ -542,8 +560,8 @@ if __name__ == "__main__":
     tlist = list(range(10))
     for i in tqdm.tqdm(tlist):
         if i % 5 == 0 or i == tlist[-1]:
-            spread_dynamic.plot_all(type = 'both')
             spread_dynamic.save_checkpoint()
+        spread_dynamic.plot_all(type = 'both')
         print(spread_dynamic)
         spread_dynamic.step()
     plt.show()
