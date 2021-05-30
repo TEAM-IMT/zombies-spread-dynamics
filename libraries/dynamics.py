@@ -379,14 +379,14 @@ class spread_zombie_dynamics:
         self._subpop_zombies.iloc[:,0] = 0
 
         # Zombies will kill by external agents if condition apply
-        self._special_nodes_update() # Update info forbidden nodes
+        action = self._special_nodes_update() # Update info forbidden nodes
         if self._trigger: 
-            print("[INFO] Military trops in {}".format(self.current_date))
+            if action in ['BOTH', 'MILITARY']: print("[INFO] Military trops in {}".format(self.current_date))
             self._subpop_zombies.loc[self._military_nodes | self._nuclear_nodes] = 0
         
         # Human will kill by external agents if condition apply
         if self._trigger: 
-            print("[INFO] Nuclear bombs in {}".format(self.current_date))
+            if action in ['BOTH', 'BOMBS']: print("[INFO] Nuclear bombs in {}".format(self.current_date))
             df_pop = pd.DataFrame(pd.Series(nx.get_node_attributes(self.graph, 'human_pop'), name = 'human_pop'))
             df_pop.loc[self._nuclear_nodes] = 0
             nx.set_node_attributes(self.graph, df_pop['human_pop'].to_dict(), name = 'human_pop')
@@ -496,17 +496,21 @@ class spread_zombie_dynamics:
         """
         Update military and nuclear cells and trigger event
         """
-        self._trigger = False
+        self._trigger, result = False, None
         if self.MILITARY_TROPS is not None and len([x for x in self.MILITARY_TROPS.keys() if x == self.current_date]) > 0:
             self._trigger = True
             self._military_nodes = filter(lambda x: x[0] <= self.current_date, self.MILITARY_TROPS.items())
             self._military_nodes = set(sum(map(lambda x: x[1], self._military_nodes), []))
             self._military_nodes = self._military_nodes.intersection(self.graph.nodes)
+            result = 'MILITARY'
         if self.NUCLEAR_BOMBS is not None and len([x for x in self.NUCLEAR_BOMBS.keys() if x == self.current_date]) > 0:
             self._trigger = True
             self._nuclear_nodes = filter(lambda x: x[0] <= self.current_date, self.NUCLEAR_BOMBS.items())
             self._nuclear_nodes = set(sum(map(lambda x: x[1], self._nuclear_nodes), []))
             self._nuclear_nodes = self._nuclear_nodes.intersection(self.graph.nodes)
+            if result is not None: result = 'BOTH'
+            else: result = 'BOMBS'
+        return result
 
     ## Other methods
     def __sum_neighbors(self, nsource):
