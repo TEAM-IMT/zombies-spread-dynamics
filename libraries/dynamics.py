@@ -379,6 +379,7 @@ class spread_zombie_dynamics:
         self._subpop_zombies.iloc[:,0] = 0
 
         # Zombies will kill by external agents if condition apply
+        self._special_nodes_update() # Update info forbidden nodes
         if self._trigger: 
             print("[INFO] Military trops in {}".format(self.current_date))
             self._subpop_zombies.loc[self._military_nodes | self._nuclear_nodes] = 0
@@ -490,7 +491,10 @@ class spread_zombie_dynamics:
         new_date = pd.DataFrame(new_date, index = [self.current_date])
         self.evolution = self.evolution.append(new_date) # Add new population with date
         
-        # Update military and nuclear cells and trigger event
+    def _special_nodes_update(self):
+        """
+        Update military and nuclear cells and trigger event
+        """
         self._trigger = False
         if self.MILITARY_TROPS is not None and len([x for x in self.MILITARY_TROPS.keys() if x == self.current_date]) > 0:
             self._trigger = True
