@@ -399,12 +399,13 @@ class spread_zombie_dynamics:
         self._forbidden_cells = self._military_nodes | self._nuclear_nodes
         
         # Zombie contribution in all graph + (ck,ck) contribution (with itself)
+        if self._trigger: # Change factor in special cells
+            for fc in self._forbidden_cells: self._df_C.loc[self._df_C['ci'] == fc, 'elev_factor'] = 0.0
         df_C = self._df_C.copy()
         df_C['sum_human_pop'] = df_C.apply(lambda x: self.__sum_neighbors(x.name), axis = 1)
         df_C = df_C.merge(pd.DataFrame(nx.get_node_attributes(self.graph, 'human_pop'), index = ['human_pop']).T, 
                             right_index = True, left_on = 'ci', how = 'left')
-        for fc in self._forbidden_cells: df_C.loc[df_C['ci'] == fc, 'elev_factor'] = 0.0 # Change factor in special cells
-
+        
         # print("[INFO] step 1.0: first merge", time.time() - tic)
         # tic = time.time()
 
