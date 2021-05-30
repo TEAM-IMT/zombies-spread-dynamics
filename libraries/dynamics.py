@@ -91,7 +91,7 @@ class spread_zombie_dynamics:
                 - elev_factor, float: Elevation factor in the direction ni -> nj between the range [0,1], 
                     with 0 no slope and 1 high slope. Influencing the spread of the epidemic.
         
-        INITIAL_DATE : datetime.date
+        INITIAL_DATE : datetime.datetime
             Day of onset of the epidemic spread
 
         MAX_ZOMBIE_AGE : int, optional (default : 15 days)
@@ -129,7 +129,7 @@ class spread_zombie_dynamics:
             print("[INFO] Graph was modified ...")
         if (name == 'MILITARY_TROPS' or name == 'NUCLEAR_BOMBS') and value is not None:
             error = colorama.Fore.RED + "[ERROR] {} of {} attribute must be {}." + colorama.Fore.RESET
-            assert all(map(lambda x: type(x) == dt.date, value.keys())), error.format("Keys", name, "DATE")
+            assert all(map(lambda x: type(x) == dt.datetime, value.keys())), error.format("Keys", name, "DATE")
             assert all(map(lambda x: type(x) == list, value.values())), error.format("Values", name, "LIST")
             cells = set(sum(value.values(), []))
             cells = cells - (self.graph.nodes & cells)
@@ -146,10 +146,11 @@ class spread_zombie_dynamics:
         s += "Initial zombie population: \t{0} ({1:.2f}\% of all population)\n".format(zombie_pop, 100*zombie_pop/self.TOTAL_POPULATION)
 
         s += "\nCURRENT GRAPH DESCRIPTION\n"
-        human_pop, zombie_pop = self.evolution.iloc[-1]['human_pop'], self.evolution.iloc[-1]['zombie_pop']
+        human_pop, zombie_pop, human_killed = self.evolution.iloc[-1]['human_pop'], self.evolution.iloc[-1]['zombie_pop'], self.evolution.iloc[-1]['human_killed']
         s += "Date of epidemic:\t\t{0:%d-%m-%Y}\n".format(self.current_date)
         s += "Total human population: \t{0} ({1:.2f}\% of all population)\n".format(human_pop, 100*human_pop/self.TOTAL_POPULATION)
         s += "Total zombie population: \t{0} ({1:.2f}\% of all population)\n".format(zombie_pop, 100*zombie_pop/self.TOTAL_POPULATION)
+        s += "Total human killed: \t\t{0} ({1:.2f}\% of all population)\n".format(human_killed, 100*human_killed/self.TOTAL_POPULATION)
         s += "-"*30
         return s
 
@@ -178,6 +179,7 @@ class spread_zombie_dynamics:
         self._military_nodes, self._nuclear_nodes = set(), set()
         self.current_date = self.INTIAL_DATE - dt.timedelta(days = 1) # +1 day in update function
         self.evolution = pd.DataFrame() # Errase all evolution info
+        self.TOTAL_POPULATION = None
         self._update()
         self.TOTAL_POPULATION = self.total_humans + self.total_zombies
         
@@ -218,7 +220,7 @@ class spread_zombie_dynamics:
                 Axes where the evolution plot was drawed.
         """
         ax_plot = self.__preplot('_ax_evol', ax) # Preprocess
-        ax_plot = self.evolution.plot(use_index = True, y = ['zombie_pop', 'human_pop'], kind = 'line', ax = ax_plot,
+        ax_plot = self.evolution.plot(use_index = True, y = ['zombie_pop', 'human_killed', 'human_pop'], kind = 'line', ax = ax_plot,
                                     xlabel = 'Date', ylabel = 'Population', marker = '.', cmap = plt.get_cmap('jet'))
         self.__postplot(ax_plot) # Postprocess
         return ax_plot
@@ -358,7 +360,7 @@ class spread_zombie_dynamics:
                 Path with checkpoint to load, in .dyn extension
         """
         with open(ck_path, 'rb') as f:
-            self.__dict__.update(pk.load(f).__dict__)    
+            self.__dict__.update(pk.load(f))
 
     def save_checkpoint(self):
         """
@@ -366,7 +368,7 @@ class spread_zombie_dynamics:
         """
         if not os.path.isdir('checkpoints'): os.mkdir('checkpoints')
         with open("checkpoints/szd_{0:%d-%m-%Y}.dyn".format(self.current_date), 'wb') as f:
-            pk.dump(self, f)
+            pk.dump(self.__dict__, f)
 
     ## Inner methods
     def _age_update(self):
@@ -378,10 +380,12 @@ class spread_zombie_dynamics:
 
         # Zombies will kill by external agents if condition apply
         if self._trigger: 
+            print("[INFO] Military trops in {}".format(self.current_date))
             self._subpop_zombies.loc[self._military_nodes | self._nuclear_nodes] = 0
         
         # Human will kill by external agents if condition apply
         if self._trigger: 
+            print("[INFO] Nuclear bombs in {}".format(self.current_date))
             df_pop = pd.DataFrame(pd.Series(nx.get_node_attributes(self.graph, 'human_pop'), name = 'human_pop'))
             df_pop.loc[self._nuclear_nodes] = 0
             nx.set_node_attributes(self.graph, df_pop['human_pop'].to_dict(), name = 'human_pop')
@@ -476,9 +480,10 @@ class spread_zombie_dynamics:
         humans = nx.get_node_attributes(self.graph, 'human_pop').values()
         zombies = nx.get_node_attributes(self.graph, 'zombie_pop').values()
         self.total_humans, self.total_zombies = sum(humans), sum(zombies)
+        self.humans_killed = self.TOTAL_POPULATION - (self.total_humans + self.total_zombies) if self.TOTAL_POPULATION is not None else 0
         
         # Update new register
-        new_date = {'human_pop': self.total_humans, 'zombie_pop': self.total_zombies,
+        new_date = {'human_pop': self.total_humans, 'zombie_pop': self.total_zombies, 'human_killed': self.humans_killed,
                     'max_human_pop_node': max(humans), 'max_zombie_pop_node': max(zombies)} # New info of populations
         new_date.update(self._subpop_zombies.sum().to_dict()) # With subpopulation summary
         self.current_date = self.current_date + dt.timedelta(days = 1)
