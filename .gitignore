@@ -2,6 +2,7 @@
 *.bmp
 *.gexf
 *.dyn
+*.mp4
 
 # Python ignore
 .ipynb_checkpoints

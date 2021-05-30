@@ -507,10 +507,8 @@ class spread_zombie_dynamics:
                 for n in self.graph.neighbors(nsource) if n not in self._forbidden_cells])
 
     def __preplot(self, axname, ax, **kwargs):
-        self._trigger = False
         if self.__dict__[axname] is None and ax is None: 
             _, self.__dict__[axname] = plt.subplots(**kwargs)
-            self._trigger = True
         
         ax_plot = self.__dict__[axname] if ax is None else ax
         plt.ion() # Enable interactive plots
@@ -525,8 +523,8 @@ class spread_zombie_dynamics:
     def __postplot(self, ax):
         try: fig = ax.figure
         except: fig = ax[0].figure
-        if self._trigger: fig.tight_layout() # Border reduction
         fig.canvas.draw() # Update plot
+        fig.tight_layout() # Border reduction
         plt.pause(0.01) # Short time to redraw plot
         plt.ioff() # Disable interactive plots
 
