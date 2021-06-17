@@ -77,7 +77,7 @@ For more information, you can see the [description of the project](docs/descript
 To get a local copy just executed the following command:
 Activate environment
 ```sh
-git clone https://github.com/Johansmm/zombies-spread-dynamics.git
+git clone https://github.com/TEAM-IMT/zombies-spread-dynamics.git
 ```
 
 ### Prerequisites
